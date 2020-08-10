@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"reflect"
 	"strconv"
 	"testing"
 )
@@ -78,4 +79,102 @@ func TestFileMode(t *testing.T) {
 	fmt.Println(os.FileMode(um))
 	fmt.Println(os.FileMode(0777))
 	fmt.Println(0777)
+}
+
+func TestConf_GetConf(t *testing.T) {
+	tests := []struct {
+		name string
+		c    *Conf
+		want *Conf
+	}{
+		// TODO: Add test cases.
+		{
+			"解析配置测试",
+			&Conf{},
+			&Conf{
+				Name: "client1",
+				Port: 8845,
+				Server: &Server{
+					IP:   "127.0.0.1",
+					Port: 9986,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.c.GetConf("./client/conf.yml"); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Conf.getConf() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestConf_Validate(t *testing.T) {
+	tests := []struct {
+		name string
+		c    *Conf
+		want bool
+	}{
+		// TODO: Add test cases.
+		{
+			"配置校验测试",
+			&Conf{
+				Name: "client1",
+				Port: 8845,
+				Server: &Server{
+					IP:   "",
+					Port: 0,
+				},
+			},
+			false,
+		},
+		{
+			"配置校验测试",
+			&Conf{
+				Name: "client1",
+				Port: 8845,
+				Server: &Server{
+					IP:   "127.0.0.1",
+					Port: 9986,
+				},
+			},
+			true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.c.Validate(); got != tt.want {
+				t.Errorf("Conf.Validate() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetAvailableIPAddress(t *testing.T) {
+	tests := []struct {
+		name    string
+		want    []string
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+		{
+			"获取本机IP测试",
+			[]string{"192.168.66.45",
+				"172.17.181.81"},
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := GetAvailableIPAddress()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetAvailableIPAddress() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GetAvailableIPAddress() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

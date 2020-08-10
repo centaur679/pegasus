@@ -3,12 +3,17 @@ package pegasus
 import (
 	"archive/tar"
 	"compress/gzip"
+	"fmt"
 	"io"
+	"io/ioutil"
+	"net"
 	"os"
 	"strings"
+
+	"gopkg.in/yaml.v2"
 )
 
-// Compress 压缩文件封装
+// Compress 压缩
 func Compress(origin, prefix, dest string) error {
 	file, err := os.Open(origin)
 	if err != nil {
@@ -112,4 +117,66 @@ func createFile(name string) (*os.File, error) {
 		return nil, err
 	}
 	return os.Create(name)
+}
+
+// Conf client配置
+type Conf struct {
+	Name   string  `yaml:"name"`
+	Port   int     `yaml:"port"`
+	Server *Server `yaml:"server"`
+}
+
+// Server 配置
+type Server struct {
+	IP   string `yaml:"ip"`
+	Port int    `yaml:"port"`
+}
+
+// GetConf 读取配置
+func (c *Conf) GetConf(filePath string) *Conf {
+	yamlFile, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	err = yaml.Unmarshal(yamlFile, c)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	return c
+}
+
+// Validate  校验配置
+func (c *Conf) Validate() bool {
+	switch {
+	case c.Port <= 0, c.Server == nil, c.Server.IP == "", c.Server.Port <= 0:
+		return false
+	default:
+		return true
+	}
+}
+
+// GetAvailableIPAddress 获取本地可用IP地址
+func GetAvailableIPAddress() ([]string, error) {
+	netInterfaces, err := net.Interfaces()
+	if err != nil {
+		return []string{}, err
+	}
+
+	var res []string
+	for i := 0; i < len(netInterfaces); i++ {
+		if (netInterfaces[i].Flags & net.FlagUp) != 0 {
+			addrs, _ := netInterfaces[i].Addrs()
+
+			for _, address := range addrs {
+				if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+					if ipnet.IP.To4() != nil {
+						fmt.Println(ipnet.IP.String())
+						res = append(res, ipnet.IP.String())
+					}
+				}
+			}
+		}
+	}
+
+	return res, nil
 }

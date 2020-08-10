@@ -4,51 +4,62 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
-	"strconv"
+	"pegasus"
 	"strings"
 	"time"
 )
 
 var tag string
 
-const HAND_SHAKE_MSG = "我是打洞消息"
+const (
+	HAND_SHAKE_MSG = "我是打洞消息"
+	CONF_PATH      = "conf.yml"
+)
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("请输入一个客户端标志")
-		os.Exit(0)
+	// 解析配置文件
+	var c pegasus.Conf
+	conf := c.GetConf(CONF_PATH)
+	defer fmt.Println("程序即将退出！")
+	if !conf.Validate() {
+		log.Panicln("配置校验错误")
 	}
-	// 当前进程标记字符串,便于显示
-	tag = os.Args[1]
-	srcAddr := &net.UDPAddr{IP: net.IPv4zero, Port: 9901} // 注意端口必须固定
-	dstAddr := &net.UDPAddr{IP: net.ParseIP("129.226.116.136"), Port: 9527}
+	fmt.Println(conf)
+
+	srcAddr := &net.UDPAddr{IP: net.IPv4zero, Port: conf.Port}
+	dstAddr := &net.UDPAddr{IP: net.ParseIP(conf.Server.IP), Port: conf.Server.Port}
 	conn, err := net.DialUDP("udp", srcAddr, dstAddr)
 	if err != nil {
-		fmt.Println(err)
+		log.Panicln(err)
 	}
+
 	if _, err = conn.Write([]byte("hello, I'm new peer:" + tag)); err != nil {
-		log.Panic(err)
+		log.Panicln(err)
 	}
+
 	data := make([]byte, 1024)
-	n, remoteAddr, err := conn.ReadFromUDP(data)
+	n, _, err := conn.ReadFromUDP(data)
 	if err != nil {
-		fmt.Printf("error during read: %s", err)
+		log.Panicln(err)
 	}
+
 	conn.Close()
-	anotherPeer := parseAddr(string(data[:n]))
-	fmt.Printf("local:%s server:%s another:%s\n", srcAddr, remoteAddr, anotherPeer.String())
-	// 开始打洞
-	bidirectionHole(srcAddr, &anotherPeer)
-}
-func parseAddr(addr string) net.UDPAddr {
-	t := strings.Split(addr, ":")
-	port, _ := strconv.Atoi(t[1])
-	return net.UDPAddr{
-		IP:   net.ParseIP(t[0]),
-		Port: port,
+	hasNat := testNAT(string(data[:n]))
+	if hasNat {
+		// 打洞
+	} else {
+		// 直接通信
 	}
+
+	// bidirectionHole(srcAddr, &anotherPeer)
 }
+
+// 服务器返回 sendip:receiveip,通过比较两个IP 地址来决定是否打洞
+func testNAT(addr string) bool {
+	t := strings.Split(addr, ":")
+	return t[0] != t[1]
+}
+
 func bidirectionHole(srcAddr *net.UDPAddr, anotherAddr *net.UDPAddr) {
 	conn, err := net.DialUDP("udp", srcAddr, anotherAddr)
 	if err != nil {
