@@ -1,0 +1,13 @@
+syntax = "proto3";
+package api;
+
+
+
+message TestIPRequest {
+    string name=1;
+}
+
+
+message TestIPResponse {
+    string receiveIP=1;
+}

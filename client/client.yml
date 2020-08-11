@@ -1,0 +1,6 @@
+name: client1
+port: 8845
+server: 
+    ip: 129.226.116.136
+    port: 9901
+    

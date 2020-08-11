@@ -4,23 +4,27 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"pegasus"
-	"strings"
 	"time"
+
+	"github.com/centaur679/pegasus/client/utils"
+
+	pb "github.com/centaur679/pegasus/client/api"
+	proto "github.com/golang/protobuf/proto"
 )
 
 var tag string
 
 const (
-	HAND_SHAKE_MSG = "我是打洞消息"
-	CONF_PATH      = "conf.yml"
+	handMsg  = "我是打洞消息"
+	confPath = "client.yml"
 )
 
 func main() {
 	// 解析配置文件
-	var c pegasus.Conf
-	conf := c.GetConf(CONF_PATH)
-	defer fmt.Println("程序即将退出！")
+	var c utils.Conf
+	conf := c.GetConf(confPath)
+	defer fmt.Println("程序即将退出！1")
+	defer fmt.Println("程序即将退出！2")
 	if !conf.Validate() {
 		log.Panicln("配置校验错误")
 	}
@@ -33,22 +37,36 @@ func main() {
 		log.Panicln(err)
 	}
 
-	if _, err = conn.Write([]byte("hello, I'm new peer:" + tag)); err != nil {
+	req := &pb.TestIPRequest{Name: conf.Name}
+	out, err := proto.Marshal(req)
+	if err != nil {
+		log.Panicln(err)
+	}
+	if _, err = conn.Write(out); err != nil {
 		log.Panicln(err)
 	}
 
 	data := make([]byte, 1024)
-	n, _, err := conn.ReadFromUDP(data)
+	n, remoteAddr, err := conn.ReadFromUDP(data)
 	if err != nil {
 		log.Panicln(err)
 	}
 
+	if remoteAddr.IP.To4().String() != dstAddr.IP.To4().String() {
+		log.Panicln("源IP不符合")
+	}
+
 	conn.Close()
-	hasNat := testNAT(string(data[:n]))
+	res := &pb.TestIPResponse{}
+	proto.Unmarshal(data[:n], res)
+	fmt.Println("res.ReceiveIP: ", res.ReceiveIP)
+	hasNat := testNAT(res.ReceiveIP)
 	if hasNat {
 		// 打洞
+		fmt.Println("有NAT")
 	} else {
 		// 直接通信
+		fmt.Println("没有NAT")
 	}
 
 	// bidirectionHole(srcAddr, &anotherPeer)
@@ -56,8 +74,11 @@ func main() {
 
 // 服务器返回 sendip:receiveip,通过比较两个IP 地址来决定是否打洞
 func testNAT(addr string) bool {
-	t := strings.Split(addr, ":")
-	return t[0] != t[1]
+	ips, err := utils.GetAvailableIPAddress()
+	if err != nil {
+		log.Panicln(err)
+	}
+	return ips[0] != addr
 }
 
 func bidirectionHole(srcAddr *net.UDPAddr, anotherAddr *net.UDPAddr) {
@@ -67,7 +88,7 @@ func bidirectionHole(srcAddr *net.UDPAddr, anotherAddr *net.UDPAddr) {
 	}
 	defer conn.Close()
 	// 向另一个peer发送一条udp消息(对方peer的nat设备会丢弃该消息,非法来源),用意是在自身的nat设备打开一条可进入的通道,这样对方peer就可以发过来udp消息
-	if _, err = conn.Write([]byte(HAND_SHAKE_MSG)); err != nil {
+	if _, err = conn.Write([]byte(handMsg)); err != nil {
 		log.Println("send handshake:", err)
 	}
 	go func() {

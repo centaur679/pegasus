@@ -1,4 +1,4 @@
-package pegasus
+package utils
 
 import (
 	"fmt"
